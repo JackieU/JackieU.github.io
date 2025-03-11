@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Find Habitable Planets</title>
+
+  <!-- vis-network  -->
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif; 
+      margin: 0; 
+      padding: 0;
+    }
+
+    .container {
+      width: 90%;
+      margin: 0 auto; 
+    }
+
+    
+    .title-block {
+      margin-top: 40px; 
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    
+    .search-section {
+      text-align: center;
+      margin-bottom: 25px;
+    }
+
+   
+    .search-line {
+      margin-top: 12px; 
+    }
+
+ 
+    .button-container {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+
+    .button-container button {
+      display: block;
+      width: 120px;  
+      margin: 10px auto; 
+    }
+
+    .search-button {
+      margin-top: 30px !important; 
+      font-size: 1.1em;
+      font-weight: bold;
+      padding: 8px 16px;
+    }
+
+ 
+    h2 {
+      color: #8d62d3; 
+      margin: 0;     
+      padding-top: 10px; 
+    }
+
+
+    h1 {
+      color: #7a37e6; 
+      margin: 0; 
+      padding-bottom: 10px;
+    }
+
+    .filter-group {
+      margin-top: 10px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+ 
+    button {
+      background-color: #dac5fa;
+      border: 1px solid #999;
+      color: #000;
+      cursor: pointer;
+    }
+    button:hover {
+      filter: brightness(95%);
+    }
+
+
+    table {
+  
+      border-collapse: separate;
+      border-spacing: 0; 
+      width: 100%;
+      margin-top: 10px;
+    }
+    table, th, td {
+      border: 1px solid #ccc;
+    }
+    th, td {
+      padding: 8px;
+      text-align: center; 
+    }
+    th {
+      background-color: #bcb4ed; 
+    }
+
+
+    #graph {
+      width: 100%;
+      height: 600px; 
+      border: 1px solid #ccc;
+      margin-top: 30px;
+    }
+
+
+    h3 {
+      margin-top: 30px; 
+      margin-bottom: 10px;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="title-block">
+      <h1>Find Habitable Planets</h1>
+    </div>
+
+    <div class="search-section">
+      <h2>Search by Planet Properties</h2>
+
+      <div class="search-line">
+        <label for="filterSelect">Select Filter Criteria:</label>
+        <select id="filterSelect">
+          <option value="">--Select--</option>
+          <option value="orbital_period">Orbital Period<br>(days)</option>
+          <option value="semi_major_axis">Semi-Major Axis<br>(AU)</option>
+          <option value="planet_radius">Planet Radius<br>(Earth radii)</option>
+          <option value="planet_mass">Planet Mass<br>(Earth masses)</option>
+          <option value="insolation_flux">Insolation Flux</option>
+          <option value="equilibrium_temperature">Equilibrium Temperature<br>(K)</option>
+          <option value="ra">Right Ascension</option>
+          <option value="dec">Declination</option>
+          <option value="gal_l">Galactic Longitude</option>
+          <option value="gal_b">Galactic Latitude</option>
+        </select>
+        <button onclick="addFilter()">Add</button>
+      </div>
+
+      <div class="search-line">
+        <form id="filterForm">
+          <div id="filters"></div>
+        </form>
+      </div>
+    </div>
+    
+    <div class="search-section">
+      <h2>Search by Galactic Region or Spiral Arm</h2>
+
+      <div class="search-line">
+        <label for="regionType">Select Search Type:</label>
+        <select id="regionType" onchange="updateRegionOptions()">
+          <option value="">--Select--</option>
+          <option value="galactic_region">Galactic Region</option>
+          <option value="spiral_arm">Spiral Arm</option>
+        </select>
+        <select id="regionOptions" class="hidden"></select>
+      </div>
+    </div>
+
+    <div class="button-container">
+      <button type="button" onclick="resetFilters()">Reset</button>
+      <button type="button" class="search-button" onclick="submitSearch()">Search</button>
+    </div>
+
+    <h3>Results</h3>
+    <div id="results"></div>
+
+    <h3>Graph Visualization</h3>
+    <div id="graph"></div>
+
+  </div><!-- end .container -->
+
+  <script>
+    function addFilter() {
+      const select = document.getElementById('filterSelect');
+      const selectedValue = select.value;
+      if (!selectedValue) return;
+
+      if (document.getElementById(`filter-${selectedValue}`)) return; 
+      
+      const filterDiv = document.createElement('div');
+      filterDiv.className = 'filter-group';
+      filterDiv.id = `filter-${selectedValue}`;
+      filterDiv.innerHTML = `
+        <label>${select.options[select.selectedIndex].textContent}</label>
+        <input type="number" step="any" id="min-${selectedValue}" placeholder="Min">
+        <input type="number" step="any" id="max-${selectedValue}" placeholder="Max">
+        <button type="button" onclick="removeFilter('${selectedValue}')">Remove</button>
+      `;
+      document.getElementById('filters').appendChild(filterDiv);
+    }
+
+    function removeFilter(id) {
+      document.getElementById(`filter-${id}`).remove();
+    }
+
+    function resetFilters() {
+      document.getElementById('filters').innerHTML = '';
+      document.getElementById('results').innerHTML = '';
+      document.getElementById('regionOptions').classList.add('hidden');
+
+      const container = document.getElementById('graph');
+      container.innerHTML = '';
+    }
+
+    function updateRegionOptions() {
+      const regionType = document.getElementById('regionType').value;
+      const regionOptions = document.getElementById('regionOptions');
+      regionOptions.innerHTML = '';
+      
+      if (regionType === 'galactic_region') {
+        regionOptions.innerHTML = `
+          <option value="Galactic Disk">Galactic Disk</option>
+          <option value="Galactic Transition Zone">Galactic Transition Zone</option>
+          <option value="Galactic Halo">Galactic Halo</option>
+        `;
+      } else if (regionType === 'spiral_arm') {
+        regionOptions.innerHTML = `
+          <option value="Orion Arm">Orion Arm</option>
+          <option value="Sagittarius Arm">Sagittarius Arm</option>
+        `;
+      }
+      regionOptions.classList.remove('hidden');
+    }
+
+    async function submitSearch() {
+      let filters = {};
+      document.querySelectorAll('.filter-group').forEach(group => {
+        const key = group.id.replace('filter-', '');
+        const minVal = document.getElementById(`min-${key}`).value;
+        const maxVal = document.getElementById(`max-${key}`).value;
+        if (minVal) filters[`min_${key}`] = parseFloat(minVal);
+        if (maxVal) filters[`max_${key}`] = parseFloat(maxVal);
+      });
+      
+      const regionType = document.getElementById('regionType').value;
+      const regionName = document.getElementById('regionOptions').value;
+      if (!regionType || !regionName) {
+        alert("Please select a region type and value");
+        return;
+      }
+      
+      const url = `https://rare-gate-450112-c4.as.r.appspot.com/api/find-planets-by-region?${regionType === 'galactic_region' ? 'region_name' : 'spiral_arm_name'}=${encodeURIComponent(regionName)}`;
+      console.log("Fetching URL:", url);
+      
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Network response was not ok");
+        const data = await response.json();
+        console.log("Count:", data.count, "Data:", data.data);
+        displayResults(data.data);
+        renderGraph(data.data);
+      } catch (error) {
+        console.error("Fetch error:", error);
+        alert("Failed to fetch data. Check the API or network connectivity.");
+      }
+    }
+
+    function displayResults(data) {
+      const resultsDiv = document.getElementById('results');
+      if (!data || data.length === 0) {
+        resultsDiv.innerHTML = "<p>No results found.</p>";
+        return;
+      }
+
+      let tableHtml = `
+        <table>
+          <thead>
+            <tr>
+              <th>Planet Name</th>
+              <th>Host Star</th>
+              <th>Discovery Method</th>
+              <th>Orbital Period<br>(days)</th>
+              <th>Semi-Major Axis<br>(AU)</th>
+              <th>Radius<br>(Earth radii)</th>
+              <th>Mass<br>(Earth masses)</th>
+              <th>Insolation Flux</th>
+              <th>Equilibrium Temperature<br>(K)</th>
+              <th>Galactic Coordinates</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      for (const p of data) {
+        const mission = p.mission_name ? `, ${p.mission_name}` : "";
+        const discoveryInfo = `${p.discovery_method} (${p.discovery_year}${mission})`;
+
+        tableHtml += `
+          <tr>
+            <td><strong>${p.planet_name}</strong></td>
+            <td>${p.host_star}</td>
+            <td>${discoveryInfo}</td>
+            <td>${p.orbital_period || 'N/A'}</td>
+            <td>${p.semi_major_axis || 'N/A'}</td>
+            <td>${p.planet_radius || 'N/A'}</td>
+            <td>${p.planet_mass || 'N/A'}</td>
+            <td>${p.insolation_flux || 'N/A'}</td>
+            <td>${p.equilibrium_temperature || 'N/A'}</td>
+            <td>(${p.gal_l}, ${p.gal_b})</td>
+          </tr>
+        `;
+      }
+
+      tableHtml += `
+          </tbody>
+        </table>
+      `;
+      resultsDiv.innerHTML = tableHtml;
+    }
+
+    function renderGraph(data) {
+      const container = document.getElementById('graph');
+      container.innerHTML = '';
+
+      if (!data || data.length === 0) {
+        return;
+      }
+
+      const nodes = [];
+      const edges = [];
+      let nodeIdCounter = 1;
+
+      data.forEach((item) => {
+    
+        const planetNodeId = `planet_${nodeIdCounter++}`;
+        nodes.push({
+          id: planetNodeId,
+          label: item.planet_name,
+          shape: 'circle',
+          color: '#FFA500'
+        });
+
+        if (item.host_star) {
+          const starNodeId = `star_${nodeIdCounter++}`;
+          nodes.push({
+            id: starNodeId,
+            label: item.host_star,
+            shape: 'circle',
+            color: '#87CEEB'
+          });
+          edges.push({
+            from: planetNodeId,
+            to: starNodeId,
+            label: 'ORBITS'
+          });
+        }
+
+        if (item.galactic_region) {
+          const regionNodeId = `region_${nodeIdCounter++}`;
+          nodes.push({
+            id: regionNodeId,
+            label: item.galactic_region,
+            shape: 'circle',
+            color: '#90EE90'
+          });
+          edges.push({
+            from: planetNodeId,
+            to: regionNodeId,
+            label: 'LOCATED_IN'
+          });
+        }
+
+        if (item.spiral_arm) {
+          const armNodeId = `arm_${nodeIdCounter++}`;
+          nodes.push({
+            id: armNodeId,
+            label: item.spiral_arm,
+            shape: 'circle',
+            color: '#FFA07A'
+          });
+          edges.push({
+            from: planetNodeId,
+            to: armNodeId,
+            label: 'IN_SPIRAL_ARM'
+          });
+        }
+
+        if (item.mission_name) {
+          const missionNodeId = `mission_${nodeIdCounter++}`;
+          nodes.push({
+            id: missionNodeId,
+            label: item.mission_name,
+            shape: 'circle',
+            color: '#DA70D6'
+          });
+          edges.push({
+            from: planetNodeId,
+            to: missionNodeId,
+            label: 'DISCOVERED_BY'
+          });
+        }
+      });
+
+      const networkData = {
+        nodes: new vis.DataSet(nodes),
+        edges: new vis.DataSet(edges),
+      };
+
+      const options = {
+        physics: {
+          enabled: true,
+          solver: 'repulsion',
+          repulsion: {
+            nodeDistance: 300, 
+            centralGravity: 0.1
+          },
+          stabilization: { iterations: 150 }
+        },
+        interaction: {
+          dragNodes: true,
+          zoomView: true,
+          dragView: true
+        },
+        edges: {
+          font: {
+            align: 'horizontal',
+            size: 12
+          },
+          arrows: {
+            to: {
+              enabled: true,
+              scaleFactor: 0.5
+            }
+          }
+        }
+      };
+
+      const network = new vis.Network(container, networkData, options);
+    }
+  </script>
+</body>
+</html>
